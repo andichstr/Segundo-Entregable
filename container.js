@@ -1,108 +1,67 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 
 class Container {
     constructor(path){
-        this.nameFile = path;
-        this.productos = [];
-        try{
-            fs.readFile(path, 'UTF-8')
-        }catch (error){
-            console.warn('No hay ningún archivo en la ruta indicada.\nSe inicializarán los productos con un array vacío.');
-        }
-
+        this.path = path;
     }
 
-    async save(producto){
-        //Si el array de productos esta vacío, inicializa el id del producto en 1 y lo agrega a sus propiedades.
-        if(this.productos.length==0){
-            producto.id = 1;
-        //Si ya tenia productos, lo inicializa en el valor del id+1 del último producto agregado.
-        }else{
-            producto.id = this.productos[this.productos.length-1].id+1;
+    async save(product){
+        try{
+            const data = await fs.readFile(this.path, "utf-8");
+            const products = JSON.parse(data);
+            let id = products.length === 0 ? 1 : products[products.length-1].id+1;
+            const newProduct = {...product, id};
+            products.push(newProduct);
+            await fs.writeFile(this.path, JSON.stringify(products, null, 2), "utf-8");
+            return newProduct.id;
+        }catch (error){
+            console.error(error);
         }
-        //Agrega el producto al array del productos, y pasa el array actualizado para sobreescribir el archivo.
-        this.productos.push(producto);
-        await fs.promises.writeFile(this.nameFile, JSON.stringify(this.productos))
-        .then(response => {
-            return producto.id;
-        })
-        .catch(error => {
-            throw new Error('No se pudo escribir el archivo');
-        })
     }
 
     async getById(id){
-        this.productos.forEach(element => {
-            if(element.id == id) return element; //Si encuentra el producto, devuelve el producto y corta la ejecucion del método.
-        });
-        return false; //Si no encuentra el producto, devuelve falso.
+        try {
+            const data = await fs.readFile(this.path, 'utf-8');
+            const productos = JSON.parse(data);
+            const product = productos.find(el => el.id===id);
+            if(!product){
+                return null
+            }
+            return product;
+        }catch (error){
+            console.error(error);
+        }
     }
 
     async getAll(){
-        return this.productos;
+        try{
+            const products = JSON.parse(await fs.readFile(this.path, 'utf8'));
+            return products;
+        }catch(error) {
+            console.error(error);
+        }
     }
 
     async deleteById(id){
-        let found = false;
-        for(let i=0; i<this.productos.length; i++){
-            if(this.productos[i].id === id){
-                found = true;
-                this.productos.splice(i,1);
-            }
+        try{
+            const products = JSON.parse(await fs.readFile(this.path, 'utf8'));
+            const newProducts = products.filter(el => {
+                return el.id != id
+            })
+            await fs.writeFile(this.path, JSON.stringify(newProducts, null, 2), "utf-8");
+        }catch(error) {
+            console.log(error);
         }
-        //Si no encuentra el id del producto, corta la ejecucion de la funcion y devuelve falso.
-        if(!found) return false;
-        await fs.promises.writeFile(this.nameFile, JSON.stringify(this.productos))
-        .then(response => {
-            console.log('Producto borrado correctamente.');
-        })
-        .catch(error => {
-            throw new Error('Error al borrar el producto.');
-        })
     }
 
     async deleteAll(){
-        this.productos = [];
-        await fs.promises.writeFile(this.nameFile, JSON.stringify(this.productos))
-        .then(response => {
+        try{
+            await fs.writeFile(this.path, JSON.stringify([]), null, "utf-8");
             console.log("Productos borrados correctamente.");
-        })
-        .catch(error => {
-            throw new Error('Error al borrar los productos.');
-        })
+        }catch(error) {
+            console.error(error);
+        }
     }
 }
 
-const contenedorProductos = new Container('./productos.txt');
-const prod1 = {
-    'nombre': 'Cerveza Heineken 1lt',
-    'precio': 510,
-    'img': 'https://monkeysushi.com.ar/wp-content/uploads/2020/02/CERVEZA-HEINEKEN-1-LITRO-NO-RETORNABLE-1-859.png'
-}
-const prod2 = {
-    'nombre': 'Doritos 220gr',
-    'precio': 1135,
-    'img': 'https://http2.mlstatic.com/D_NQ_NP_712388-MLA51026803779_082022-O.webp'
-}
-
-const prod3 = {
-    'nombre': 'Papas Fritas Pringles Cebolla 139gr',
-    'precio': 715,
-    'img': 'https://http2.mlstatic.com/D_NQ_NP_711555-MLA46924659450_072021-O.jpg'
-}
-
-//Primer método
-console.log("Primer save: ", contenedorProductos.save(prod1));
-console.log("Segundo save: ", contenedorProductos.save(prod2));
-console.log("Tercer save: ", contenedorProductos.save(prod3));
-//Segundo método
-const productoObtenido = contenedorProductos.getById(2);
-console.log("getById(2): ", productoObtenido);
-//Tercer método
-console.log("getAll(): ", contenedorProductos.getAll());
-//Cuarto método
-contenedorProductos.deleteById(1);
-console.log("getAll() despues de borrar el id=1: ", contenedorProductos.getAll())
-//Quinto método
-contenedorProductos.deleteAll();
-console.log("getAll() despues de borrar todos los productos: ", contenedorProductos.getAll());
+module.exports=Container;
